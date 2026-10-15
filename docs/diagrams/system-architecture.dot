@@ -1,0 +1,32 @@
+digraph G {
+  graph [fontname="DejaVu Sans",pad=0.25,bgcolor="white",ranksep=0.7,nodesep=0.42,labelloc=t,label="AEGISIR  |  Hybrid Linux Incident Response Architecture",fontsize=20,fontcolor="#18283A",splines=spline];
+  node [shape=box,style="rounded,filled",fontname="DejaVu Sans",fontsize=11,margin="0.18,0.13",color="#CBD5E1",fillcolor="#F1F5F9",fontcolor="#152338"];
+  edge [color="#60758A",arrowsize=0.7,penwidth=1.5];
+  Analyst [label="INCIDENT RESPONDER\nAuthorized analyst",fillcolor="#E1E9F7"];
+  Console [label="Go Terminal Console\nCLI / Menu / Help",fillcolor="#D7EAF4"];
+  Collect [label="Go Collection Engine\n12 Bounded Linux Modules",fillcolor="#D9F0E8"];
+  Linux [label="LOCAL LINUX ARTIFACTS\n/proc • auth logs • systemd\ncron • SSH keys • firewall",fillcolor="#F7F3E9"];
+  Bridge [label="Local JSON Protocol\nstdin/stdout • no remote API",fillcolor="#F5F0DB"];
+  Python [label="Python Investigation Engine\nDeterministic Rules + Cases",fillcolor="#E2E3F8"];
+  DB [label="SQLite Case Store\nDecisions • Checklist • Audit",fillcolor="#EBECF4"];
+  Evidence [label="Evidence JSON + SHA-256\nLocal user-private directory",fillcolor="#EBECF4"];
+  Report [label="Incident Report\nFindings + Timeline + Lessons",fillcolor="#EBECF4"];
+  Approval [label="Human Approval\nApprove / Skip / Defer",fillcolor="#FFF0D8"];
+  Gate [label="Go Safety Gate\nLab-only typed confirmation",fillcolor="#FFE2DE"];
+  Verify [label="Re-scan + Verify\nIndependent analyst review",fillcolor="#D9F0E8"];
+  {rank=same; Collect;Bridge;Approval}
+  {rank=same; DB;Evidence;Report}
+  Analyst->Console;
+  Console->Collect;
+  Linux->Collect;
+  Console->Bridge;
+  Collect->Bridge;
+  Bridge->Python;
+  Python->DB;
+  Python->Evidence;
+  Python->Report;
+  Python->Approval;
+  Approval->Gate [style=dashed];
+  Gate->Verify;
+  Verify->Console [style=dashed];
+}

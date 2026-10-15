@@ -1,0 +1,23 @@
+digraph G {
+  graph [fontname="DejaVu Sans",pad=0.24,bgcolor="white",ranksep=0.65,nodesep=0.38,labelloc=t,label="AEGISIR  |  Evidence-driven Incident Response Workflow",fontsize=19,fontcolor="#17293B"];
+  node [shape=box,style="rounded,filled",fontname="DejaVu Sans",fontsize=10,margin="0.16,0.12",color="#D4DCE7",fillcolor="#F2F5F9"];
+  edge [color="#657C90",arrowsize=0.7,penwidth=1.4];
+  Prepare [label="1  PREPARE\nAssets • Logs • Authority",fillcolor="#DCEAF6"];
+  Identify [label="2  IDENTIFY\nAlert • Three IR Questions",fillcolor="#DCEAF6"];
+  Scope [label="3  SCOPE + CONTAIN\nImpact • Preserve • Isolate",fillcolor="#FFEACE"];
+  Eradicate [label="4  ERADICATE\nRoot cause • Persistence",fillcolor="#DCEAF6"];
+  Recover [label="5  RECOVER\nRestore • Verify • Monitor",fillcolor="#DCEAF6"];
+  Learn [label="6  LESSONS\nReport • Improve Controls",fillcolor="#DDF0E5"];
+  Evidence [label="Read-only Linux Evidence\nGo Collectors",fillcolor="#E9F3EE"];
+  Analyse [label="Detect + Explain\nPython Rules",fillcolor="#E7E8F5"];
+  Decide [label="ANALYST DECISION\nApprove / Skip / Defer",fillcolor="#FBE6CF"];
+  Record [label="Audit + Verify + Report",fillcolor="#DDF0E5"];
+  Prepare->Identify->Scope->Eradicate->Recover->Learn;
+  Identify->Evidence;
+  Evidence->Analyse;
+  Analyse->Decide;
+  Decide->Record;
+  Decide->Scope [style=dashed,label="urgent response",fontsize=9];
+  Record->Learn [style=dashed];
+  Learn->Prepare [style=dashed,label="continuous improvement",fontsize=9,constraint=false];
+}

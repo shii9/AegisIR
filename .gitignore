@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────
+# AegisIR — Production .gitignore
+# ─────────────────────────────────────────────
+
+# ── Compiled binaries ─────────────────────────
+/aegisir
+dist/
+
+# ── Python bytecode & caches ──────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+venv/
+
+# ── Go build artifacts ────────────────────────
+*.test
+*.out
+vendor/
+
+# ── AegisIR runtime data (never commit) ───────
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.db
+cases/
+evidence/
+reports/
+
+# ── Development scratch dirs ──────────────────
+tmp-dev/
+temp-smoke/
+scratch/
+.tmp/
+
+# ── Secrets & environment ─────────────────────
+.env
+.env.*
+*.key
+*.pem
+
+# ── OS generated files ────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+
+# ── IDE / editor ──────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
