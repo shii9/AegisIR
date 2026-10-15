@@ -100,28 +100,52 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     actor IR as IR Analyst
-    participant G as Go CLI
-    participant C as Go Collector
-    participant P as Python Engine
-    participant E as Evidence Store
-    participant D as SQLite DB
+    participant G as Go CLI Control Plane
+    participant C as Go Linux Collectors
+    participant P as Python Heuristic Engine
+    participant E as Evidence Vault
+    participant D as SQLite Database
     
-    IR->>G: aegisir -all -o report.html
-    G->>C: Execute 12 bounded Linux collectors
-    C-->>G: Normalized evidence JSON + warnings
-    G->>P: Stream evidence via stdin
-    P->>E: Store evidence files (mode 0600)
-    E-->>P: Compute SHA-256 evidence digests
-    P->>P: Evaluate ATT&CK detection rules
-    P->>D: Record case, scans, findings, audit events
-    P-->>G: Structured analysis summary
-    G-->>IR: Formatted terminal dashboard + report.html
+    IR->>G: aegisir -all -o report.html (or aegisir -p)
+    Note over G: [1/5] Auto-create case in SQLite
+    G->>P: op: "new" (hostname, analyst, timestamp)
+    P->>D: INSERT INTO cases
+    P-->>G: case_id
     
-    opt Analyst Decision & Remediation
-        IR->>G: aegisir -decide CASE FINDING --choice approve --reason "Confirmed malicious"
-        G->>P: Store analyst verdict and rationale
-        P->>D: Append to immutable audit chain
+    Note over G: [2/5] Read-only collection across 12 modules
+    G->>C: collect(processes, network, files, etc.)
+    C-->>G: normalized JSON evidence + warnings
+    
+    Note over G: [3/5] Heuristic & ATT&CK analysis
+    G->>P: op: "scan" (case_id, modules)
+    P->>E: write raw evidence (mode 0600)
+    E-->>P: SHA-256 digest per evidence file
+    P->>P: evaluate deterministic ATT&CK rules
+    P->>D: record scans, findings, audit hashes
+    P-->>G: summary (items, findings, status, warnings)
+    
+    Note over G: [4/5] Interactive finding inspection & mitigation
+    G->>P: op: "findings", op: "inspect"
+    P-->>G: finding details, recommendations, cross-verification commands
+    G-->>IR: display finding cards & prompt [Y/N]
+    alt Analyst approves mitigation
+        IR->>G: [Y] approve
+        opt Safe lab action executable
+            G->>G: validate PID / file hash, execute action
+        end
+        G->>P: op: "decide" (choice: approve, reason: analyst rationale)
+        P->>D: append to immutable audit chain
+    else Analyst skips
+        IR->>G: [N] skip
+        G->>P: op: "decide" (choice: skip, reason: analyst passed)
+        P->>D: append to immutable audit chain
     end
+    
+    Note over G: [5/5] Multi-format forensic report export
+    G->>P: op: "report" (format, output path)
+    P->>D: compile case metadata, findings, audit log, SHA-256 digests
+    P-->>G: exported report path & hash
+    G-->>IR: formatted report file + completion banner
 ```
 
 ### Architectural Planes
@@ -137,7 +161,7 @@ sequenceDiagram
 
 ## Incident Response Workflow
 
-AegisIR aligns with the **NIST SP 800-61 Rev. 3** and **Cybersecurity Framework (CSF) 2.0** incident response operational phases.
+AegisIR implements an automated, analyst-centric incident response triage lifecycle aligned with **NIST SP 800-61 Rev. 3** and the **Cybersecurity Framework (CSF) 2.0**.
 
 ![AegisIR Incident Response Workflow](docs/diagrams/incident-workflow.png)
 
@@ -153,10 +177,29 @@ flowchart LR
   R -. "Recurrence / Gap Detected" .-> S
 ```
 
+### Automated 5-Stage Live Triage Pipeline
+
+Whenever a scan command is invoked (`aegisir -all`, `aegisir -p`, `aegisir -f`, etc.), AegisIR automatically executes a unified 5-stage triage pipeline:
+
+1. **`[1/5]` Case Auto-Initialization:** Automatically provisions a new case in local SQLite, records target hostname, executing user, and timestamp.
+2. **`[2/5]` Read-Only Evidence Collection:** Sweeps selected or all 12 modules using non-destructive syscalls, stores raw JSON in the evidence vault (`mode 0600`), and computes SHA-256 digests.
+3. **`[3/5]` ATT&CK Rule Evaluation:** Correlates captured forensic evidence against deterministic detection rules mapped to MITRE ATT&CK techniques; outputs a module status summary table.
+4. **`[4/5]` Finding Inspection & Interactive Mitigation:** Displays finding cards with observed evidence, confidence, and recommended cross-verification shell commands (`grep`, `ss`, `lsof`, `systemctl`), then interactively prompts the analyst:
+   - `[Y]`: Records approval decision with analyst rationale in the audit log; prompts to execute bounded lab containment if qualified.
+   - `[N]`: Records skip decision with rationale and returns to terminal.
+5. **`[5/5]` Forensic Report Generation:** Compiles and exports the case report (`.html`, `.json`, `.md`, `.txt`) complete with cryptographic digests and audit hashes.
+
+### Interactive Terminal UI Menu (`-ui`)
+
+Running `aegisir -ui` (or launching `aegisir` with no arguments) provides an interactive ANSI menu:
+- **Scan Operations:** Processes `[1]`, Files `[2]`, Mounts `[3]`, Network `[4]`, All 12 Modules `[5]`
+- **Case Management:** Browse Past Cases `[6]`, Case Dashboard `[7]`, Case Timeline `[8]`, Verify Evidence Hashes `[9]`, NIST Checklist `[10]`
+- **Diagnostics & Guides:** Synthetic Incident Demo `[11]`, System Doctor `[12]`, Module Directory `[13]`, Help Reference `[14]`
+
 ### 1. Preparation
 Audit analyst environment, verify NTP synchronization, logging facilities, and collector health.
 ```bash
-aegisir -doctor       # Verify system, collector permissions, and dependencies
+aegisir -doctor          # Verify environment, collector permissions, and dependencies
 aegisir -guide readiness # Built-in IR readiness checklist and runbook
 ```
 

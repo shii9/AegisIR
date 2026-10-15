@@ -1,109 +1,128 @@
-# System Architecture and Working Architecture
+# System Architecture and Component Design
 
 ![Rendered system architecture](diagrams/system-architecture.png)
 
-## Architecture A — operator and trust boundaries
+## Architecture A — Operator & Trust Boundaries
 
 ```mermaid
 flowchart TB
-  Analyst[Authorized IR Analyst / Terminal] --> CLI[Go CLI + Numbered TUI]
-  CLI --> Collector[Go Linux Read-only Collectors]
-  CLI --> Gate[Go Live Action Gate - disabled by default]
-  Collector --> Linux[Linux procfs / systemd / logs / user files]
-  CLI --> Bridge[Bounded JSON stdin / stdout subprocess]
+  subgraph OPERATOR ["TRUSTED OPERATOR DOMAIN"]
+    Analyst["Authorized IR Analyst / Terminal"]
+    CLI["Go CLI + ANSI Interactive TUI"]
+    Collector["12 Linux Read-Only Collectors"]
+    Gate["Live Action Gate (Lab Only, Disabled by Default)"]
+  end
+
+  subgraph TARGET ["TARGET HOST FORENSIC ARTIFACTS"]
+    Host["Linux procfs / systemd / logs / user files"]
+  end
+
+  subgraph ENGINE ["DATA & PERSISTENCE PLANE"]
+    Bridge["Bounded JSON stdin/stdout IPC Bridge"]
+    Python["Python Analytics & Case Engine"]
+    Rules["Deterministic ATT&CK Detection Rules"]
+    DB[("SQLite Store (Cases, Findings, Audit Chain)")]
+    Evidence[("Evidence Vault (SHA-256 Hashed JSON)")]
+    Reports["Multi-Format Reports (MD / HTML / JSON / TXT)"]
+  end
+
+  Analyst --> CLI
+  CLI --> Collector
+  Collector --> Host
+  CLI --> Gate
+  CLI --> Bridge
   Collector --> Bridge
-  Bridge --> Engine[Python Investigation + Case Engine]
-  Engine --> Rules[Deterministic Detection Rules]
-  Engine --> DB[(SQLite: cases / scans / findings / decisions / audit)]
-  Engine --> Evidence[(Private JSON Evidence + SHA-256)]
-  Engine --> Report[Markdown IR Report]
-  Gate -->|only after explicit approval and confirmation| Local[Restricted local lab action]
-  Local -. result .-> Bridge
+  Bridge --> Python
+  Python --> Rules
+  Python --> DB
+  Python --> Evidence
+  Python --> Reports
 ```
 
-There is **no network API** and no privileged server in v0.2. Python is a child process of the analyst's Go CLI; both run at the same operator privileges. Live actions are limited to the operator's own temporary artifacts and are disabled by default.
+There is **no network API** and no privileged server in v0.2. Python is a child process of the analyst's Go CLI; both execute with the operator's unprivileged permissions. Containment actions are restricted to lab artifacts and are disabled by default.
 
-## Architecture B — working data path
+---
+
+## Architecture B — Working Data & Execution Sequence
 
 ```mermaid
 sequenceDiagram
     actor IR as IR Analyst
-    participant G as Go CLI
-    participant C as Go Collector
-    participant P as Python Engine
-    participant E as Evidence Store
-    participant D as SQLite
-    IR->>G: aegisir scan CASE --module all
-    G->>C: run 12 bounded Linux collectors
-    C-->>G: normalized JSON with warnings
-    G->>P: JSON request via stdin
-    P->>E: write evidence files (0600)
-    E-->>P: SHA-256 digest
-    P->>P: evaluate explainable rules
-    P->>D: append scans, findings, audit events
-    P-->>G: finding counts and module coverage
-    G-->>IR: structured outcome
-    IR->>G: inspect -> decide approve/skip/defer
-    G->>P: record decision + reason
-    P->>D: audit chain update
-    opt Lab action specifically enabled
-       IR->>G: act --live + interactive exact confirmation
-       G->>P: prepare_action: verify finding approval
-       P-->>G: approved limited action plan
-       G->>G: revalidate target owner/PID/hash
-       G->>G: local bounded action
-       G->>P: append result to audit
+    participant G as Go CLI Control Plane
+    participant C as Go Linux Collectors
+    participant P as Python Heuristic Engine
+    participant E as Evidence Vault
+    participant D as SQLite Database
+    
+    IR->>G: aegisir -all -o report.html (or aegisir -p)
+    Note over G: [1/5] Auto-create case in SQLite
+    G->>P: op: "new" (hostname, analyst, timestamp)
+    P->>D: INSERT INTO cases
+    P-->>G: case_id
+    
+    Note over G: [2/5] Read-only collection across 12 modules
+    G->>C: collect(processes, network, files, etc.)
+    C-->>G: normalized JSON evidence + warnings
+    
+    Note over G: [3/5] Heuristic & ATT&CK analysis
+    G->>P: op: "scan" (case_id, modules)
+    P->>E: write raw evidence (mode 0600)
+    E-->>P: SHA-256 digest per evidence file
+    P->>P: evaluate deterministic ATT&CK rules
+    P->>D: record scans, findings, audit hashes
+    P-->>G: summary (items, findings, status, warnings)
+    
+    Note over G: [4/5] Interactive finding inspection & mitigation
+    G->>P: op: "findings", op: "inspect"
+    P-->>G: finding details, recommendations, cross-verification commands
+    G-->>IR: display finding cards & prompt [Y/N]
+    alt Analyst approves mitigation
+        IR->>G: [Y] approve
+        opt Safe lab action executable
+            G->>G: validate PID / file hash, execute action
+        end
+        G->>P: op: "decide" (choice: approve, reason: analyst rationale)
+        P->>D: append to immutable audit chain
+    else Analyst skips
+        IR->>G: [N] skip
+        G->>P: op: "decide" (choice: skip, reason: analyst passed)
+        P->>D: append to immutable audit chain
     end
-    IR->>G: verify / report
-    G->>P: verify evidence hashes, audit chain / export
-    P-->>IR: verdict / Markdown report
+    
+    Note over G: [5/5] Multi-format forensic report export
+    G->>P: op: "report" (format, output path)
+    P->>D: compile case metadata, findings, audit log, SHA-256 digests
+    P-->>G: exported report path & hash
+    G-->>IR: formatted report file + completion banner
 ```
 
-## Architecture C — roles of agents
+---
 
-| Logical agent | Running implementation | Write privileges | Safety boundary |
+## Architecture C — Roles of Architectural Components
+
+| Component | Implementation | Write Privileges | Safety Boundary |
 |---|---|---|---|
-| Collection agent | Go `internal/collector` | None by design (read-only observations) | Module limits, path caps and subprocess timeouts |
-| Detection agent | Python `detect()` | Case evidence/DB only | Deterministic rules, no arbitrary LLM output |
-| Explanation agent | Python finding metadata + Go `guide` | Case DB only | Observed evidence and explicit caveats |
-| Case agent | Python SQLite workflow | User-owned case directory | Scoped case IDs, auditable updates |
-| Decision agent | Python approval record | Case DB | Analyst reason; no automatic execution |
-| Response agent | Go `internal/actions` | Two limited lab changes | Non-root operator, ownership, exact PID start time/hash, TTY typed confirmation |
-| Verification agent | Python `verify()` + operator re-scan | Case DB and outputs | Local integrity verification; action effectiveness must be independently checked |
-| Report agent | Python Markdown exporter | Chosen report path | No overwrite, logged export hash |
+| **Collector Engine** | Go `internal/collector/` | None (Read-only observation) | Bounded reads, buffer limits, per-collector timeouts |
+| **Detection Engine** | Python `engine.py:evaluate()` | Case evidence / DB only | Deterministic MITRE ATT&CK rules, explainable criteria |
+| **Guidance Engine** | Go `cmd/aegisir/guide.go` | None | Built-in offline playbooks with verification commands |
+| **Case & Audit Store** | Python SQLite `engine.py` | User-owned directory (`~/.aegisir`) | Scoped case IDs, chained hash integrity |
+| **Mitigation Gate** | Go `internal/actions/` | Restricted lab targets only | Refuses root actions, verifies ownership, requires typed confirmation |
+| **Report Exporter** | Python `engine.py` | Target file specified by user | Multi-format (.md, .json, .html, .txt), no silent overwrite |
 
-**Future independent AI advisory agent** is intentionally disconnected from execution permissions; adding one requires prompt-injection resilience, isolated tools, factual citations to scan IDs and evaluation. Never let model prose directly issue shell commands.
+---
 
-## Architecture D — data and control planes
+## Architecture D — Data & Control Planes
 
-- **Control plane:** Go CLI/interactive menu, workflow requests and response-authorization controls.
-- **Data plane:** Go Linux collectors, JSON evidence capture, Python rule engine, structured SQLite findings.
-- **Evidence plane:** case-specific JSON snapshots and SHA-256; local chained audit hashes; Markdown report.
-- **Security plane:** user ownership, `umask 077`, bounded reads, no network listener, explicit action approval, refusal of root actions.
+- **Control plane:** Go CLI (`cmd/aegisir/main.go`), numbered ANSI terminal UI (`tui.go`), flag parser, and analyst authorization prompts.
+- **Data plane:** 12 Go Linux collectors, JSON serialization, Python rule correlation engine, structured SQLite findings.
+- **Evidence plane:** Case-specific JSON snapshots with SHA-256 digests, chained SQLite audit events, exported reports.
+- **Security plane:** Per-user file permissions (`0700` directories, `0600` files), `umask 077`, bounded syscalls, zero network listeners, root action refusal.
 
-## Attack surface and limitations
+---
 
-1. `/proc` and logs are mutable and can be influenced by a local attacker. A post-compromise root attacker may hide, remove or modify observations.
-2. Permission limits mean only partial access to other users, firewall policies, secure journals and SSH key directories.
-3. A process PID can be reused between validation and signal; the current restricted SIGTERM is not a high-assurance containment primitive.
-4. Local JSON hash + SQLite chain is not a cryptographic chain of custody against a privileged local attacker; use external WORM storage, signatures, independent acquisition timestamps and controlled evidence transfers for evidentiary cases.
-5. A case still needs incident commander escalation, legal approval and business-impact decisions. The terminal cannot automate human authority.
+## Attack Surface & Limitations
 
-## Planned enterprise architecture (not implemented)
-
-```mermaid
-flowchart LR
-  A[Endpoint Go Agents - signed mTLS] --> B[Collection Gateway]
-  B --> C[(Encrypted Evidence Object Store)]
-  S[SIEM: Wazuh / Splunk / Elastic] --> Q[Event Ingestion]
-  Q --> O[Incident Orchestrator API]
-  C --> O
-  O --> D[(PostgreSQL + RBAC)]
-  O --> R[Rule Engine + Optional Advisory AI]
-  R --> H[Human Approval Workflow]
-  H --> X[Policy Scoped Remote Executor]
-  X --> V[Independent Verification]
-  V --> O
-```
-
-Before building this, threat-model agent authentication, event provenance, customer data segregation, secrets storage, audit export, rollback and approver independence.
+1. `/proc` and system logs are kernel/filesystem structures and can be manipulated by an attacker who has already obtained root privileges.
+2. Unprivileged execution means access is partial for foreign user directories, raw packet sockets, and restricted systemd units.
+3. Process PIDs can be reused between validation and signal delivery; lab containment is an educational/testing feature, not an enterprise containment agent.
+4. Local evidence hashing provides tamper detection on the machine, but does not substitute for an off-host WORM storage audit archive in legal forensic proceedings.
