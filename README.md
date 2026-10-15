@@ -1,6 +1,6 @@
-<div align=center>
+<div align="center">
 
-`
+```text
   ╔═══════════════════════════════════════════════════════════╗
   ║     █████╗ ███████╗ ██████╗ ██╗███████╗██╗██████╗         ║
   ║    ██╔══██╗██╔════╝██╔════╝ ██║██╔════╝██║██╔══██╗        ║
@@ -8,9 +8,9 @@
   ║    ██╔══██║██╔══╝  ██║   ██║██║╚════██║██║██╔══██╗        ║
   ║    ██║  ██║███████╗╚██████╔╝██║███████║██║██║  ██║        ║
   ╚═══════════════════════════════════════════════════════════╝
-`
+```
 
-# AegisIR — Linux Incident Response & Forensic Tool
+# AegisIR — Linux Incident Response & Forensic Workbench
 
 **v0.2.0** · Read-only by default · No network listener · No root required · NIST SP 800-61 aligned
 
@@ -19,38 +19,18 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86__64%20%7C%20arm64-lightgrey)](.)
 [![Tests](https://img.shields.io/badge/Tests-9%20passing-brightgreen)](#testing)
+[![Documentation](https://img.shields.io/badge/Docs-Complete-blue)](docs/)
 
 </div>
 
 ---
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [System Architecture](#system-architecture)
-- [Incident Response Workflow](#incident-response-workflow)
-- [Collection Modules](#collection-modules)
-- [Quick Start](#quick-start)
-- [Command Reference](#command-reference)
-- [Output & Reports](#output--reports)
-- [Past Case & Incident Management](#past-case--incident-management)
-- [Investigation Guides](#investigation-guides)
-- [Security Model](#security-model)
-- [Project Structure](#project-structure)
-- [Building from Source](#building-from-source)
-- [Testing](#testing)
-- [Limitations & Roadmap](#limitations--roadmap)
-- [License](#license)
-
----
-
 ## Overview
 
-**AegisIR** is a self-contained, offline-capable Linux incident response tool for authorized security analysts. It combines a fast Go CLI with a Python analysis engine to collect forensic evidence, detect suspicious behavior using deterministic rules, manage incident cases, and generate tamper-evident reports — all without a network connection or privileged daemon.
+**AegisIR** is an offline-capable Linux incident response and forensic triage workbench built for authorized security analysts, SOC teams, and DFIR practitioners. It pairs a fast, statically-linked Go CLI (control plane) with an explainable Python analysis engine (data plane) to collect live forensic evidence, evaluate deterministic detection rules mapped to MITRE ATT&CK, manage incident cases, and generate tamper-evident reports — all with **zero third-party dependencies**, **no open network ports**, and **no background daemon**.
 
-> **Designed for:** Security analysts, incident responders, SOC teams, and students performing authorized Linux triage.  
-> **Not designed for:** Automated autonomous containment, enterprise multi-host response, or unauthenticated deployment.
+> **Designed for:** Security analysts, incident responders, SOC teams, and forensic engineers performing authorized live-host Linux triage.  
+> **Not designed for:** Automated autonomous containment, enterprise multi-host orchestration, or unauthenticated deployment.
 
 ---
 
@@ -58,152 +38,216 @@
 
 | Feature | Description |
 |---|---|
-| 🔍 **12 Forensic Modules** | Processes, files, mounts, network, users, services, cron, SSH, shell profiles, logs, firewall, readiness |
-| 🛡️ **Read-Only by Default** | All collectors are non-destructive; no system changes without explicit analyst approval |
-| 📊 **Multi-Format Reports** | Export evidence as .md, .json, .html, or .txt |
-| 🔐 **Tamper-Evident Audit** | SHA-256 evidence digests + chained audit log for every case |
-| 📋 **NIST SP 800-61 Workflow** | Built-in 6-phase incident response checklist (Preparation → Lessons Learned) |
-| 🧠 **ATT&CK-Aligned Detection** | Deterministic rules mapped to MITRE ATT&CK techniques |
-| 💡 **Offline IR Guides** | 13 built-in investigation playbooks accessible without internet |
-| 🗃️ **SQLite Case Management** | Full case lifecycle: create → scan → inspect → decide → report → verify |
-| ⚡ **Zero Dependencies** | Single statically-linked binary + Python 3; no agent, no daemon, no root |
+| 🔍 **12 Forensic Modules** | Live processes, files, mounts, network sockets, users, systemd services, cron, SSH keys, shell profiles, auth logs, firewall policy, and IR readiness |
+| 🛡️ **Read-Only by Default** | Non-destructive collectors use only read syscalls; no host modification without explicit analyst confirmation |
+| 📊 **Multi-Format Reporting** | Export forensic cases into formatted Markdown (`.md`), SIEM-ready JSON (`.json`), executive HTML (`.html`), or plain text (`.txt`) |
+| 🔐 **Tamper-Evident Evidence** | Cryptographic SHA-256 digests for every evidence snapshot and a hash-chained SQLite audit trail |
+| 📋 **NIST IR Lifecycle** | Built-in 6-phase incident response workflow and tracking (Preparation → Identification → Scope/Containment → Eradication → Recovery → Lessons Learned) |
+| 🧠 **MITRE ATT&CK Correlation** | Heuristic, explainable detection rules mapped directly to MITRE ATT&CK techniques |
+| 💡 **13 Offline Guides** | Comprehensive built-in investigation playbooks with verification commands (`grep`, `ss`, `lsof`, `stat`, `systemctl`) |
+| 🗃️ **SQLite Case Management** | Local case store tracking scans, findings, analyst decisions, reasons, and timelines |
+| ⚡ **Zero External Dependencies** | Single static Go binary + standard Python 3.9+ runtime; requires no package installations or root privileges |
 
 ---
 
 ## System Architecture
 
-AegisIR follows a strict **operator-trust boundary** model. The Go CLI is the control plane; the Python engine handles analysis and persistence. There is **no network API** and no privileged server process.
+AegisIR enforces strict operator-trust boundaries. The Go CLI acts as the interactive control plane, while the Python engine executes analysis, detection heuristics, and SQLite persistence. There is **no listening network socket** and no privileged server process.
 
-### Data Flow
+### Architecture Overview
 
-`
-┌──────────────────────────────────────────────────────────────────┐
-│                    IR Analyst / Terminal                           │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │  aegisir -process / -all / -cases
-                             ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                     Go CLI (cmd/aegisir)                           │
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────────────┐ │
-│  │  Flag/TUI   │  │   Collector  │  │    Live Action Gate      │ │
-│  │  Parser     │  │  (12 mods)   │  │  (disabled by default)   │ │
-│  └──────┬──────┘  └──────┬───────┘  └──────────────────────────┘ │
-└─────────┼────────────────┼───────────────────────────────────────┘
-          │                │ read-only JSON
-          │                ▼
-          │  ┌─────────────────────────────────┐
-          │  │   Linux procfs / systemd / logs  │
-          │  │   /proc  /sys  /var  /etc  ~     │
-          │  └─────────────────────────────────┘
-          │
-          │  Bounded JSON stdin/stdout (bridge)
-          ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                   Python Engine (python/engine.py)                 │
-│  ┌──────────────┐  ┌─────────────────┐  ┌────────────────────┐  │
-│  │  Detection   │  │  Case/Workflow   │  │   Report Export    │  │
-│  │  Rules Engine│  │  SQLite Database │  │  md/json/html/txt  │  │
-│  └──────┬───────┘  └────────┬────────┘  └────────────────────┘  │
-│         │                   │                                     │
-│  ┌──────▼───────────────────▼──────────────────────────────────┐ │
-│  │   Evidence Store (JSON + SHA-256) · Audit Chain (SQLite)    │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────┘
-`
+![AegisIR System Architecture](docs/diagrams/system-architecture.png)
 
-### Component Roles
+### Control Plane & Trust Boundaries
 
-| Component | Role | Write Access |
+```mermaid
+flowchart TB
+  subgraph TRUSTED ["TRUSTED OPERATOR DOMAIN"]
+    Analyst["Authorized IR Analyst / Terminal"]
+    CLI["Go CLI + ANSI Interactive TUI"]
+    Collector["12 Linux Read-Only Collectors"]
+    Gate["Live Action Gate (Lab Only, Disabled by Default)"]
+  end
+
+  subgraph UNTRUSTED ["TARGET HOST ARTIFACTS"]
+    Host["Linux procfs / systemd / logs / user files"]
+  end
+
+  subgraph ENGINE ["DATA & ANALYSIS PLANE"]
+    Bridge["Bounded JSON stdin/stdout IPC Bridge"]
+    Python["Python Analytics & Case Engine"]
+    Rules["Deterministic ATT&CK Detection Rules"]
+    DB[("SQLite Store (Cases, Findings, Audit Chain)")]
+    Evidence[("Evidence Vault (SHA-256 Hashed JSON)")]
+    Reports["Multi-Format Reports (MD / HTML / JSON / TXT)"]
+  end
+
+  Analyst --> CLI
+  CLI --> Collector
+  Collector --> Host
+  CLI --> Gate
+  CLI --> Bridge
+  Collector --> Bridge
+  Bridge --> Python
+  Python --> Rules
+  Python --> DB
+  Python --> Evidence
+  Python --> Reports
+```
+
+### Data Flow & Execution Sequence
+
+```mermaid
+sequenceDiagram
+    actor IR as IR Analyst
+    participant G as Go CLI
+    participant C as Go Collector
+    participant P as Python Engine
+    participant E as Evidence Store
+    participant D as SQLite DB
+    
+    IR->>G: aegisir -all -o report.html
+    G->>C: Execute 12 bounded Linux collectors
+    C-->>G: Normalized evidence JSON + warnings
+    G->>P: Stream evidence via stdin
+    P->>E: Store evidence files (mode 0600)
+    E-->>P: Compute SHA-256 evidence digests
+    P->>P: Evaluate ATT&CK detection rules
+    P->>D: Record case, scans, findings, audit events
+    P-->>G: Structured analysis summary
+    G-->>IR: Formatted terminal dashboard + report.html
+    
+    opt Analyst Decision & Remediation
+        IR->>G: aegisir -decide CASE FINDING --choice approve --reason "Confirmed malicious"
+        G->>P: Store analyst verdict and rationale
+        P->>D: Append to immutable audit chain
+    end
+```
+
+### Architectural Planes
+
+| Plane | Responsibilities | Security Boundaries |
 |---|---|---|
-| cmd/aegisir/main.go | CLI entrypoint, flag parsing, interactive prompts | None |
-| cmd/aegisir/tui.go | Formatted terminal output for cases and findings | None |
-| cmd/aegisir/guide.go | Offline IR playbooks and investigation guides | None |
-| internal/collector/ | 12 read-only Linux collectors | None |
-| internal/bridge/ | Bounded JSON subprocess IPC | None |
-| internal/actions/ | Restricted lab-only action executor | Lab artifacts only |
-| python/engine.py | Detection rules, case DB, report generation | Case evidence + DB |
-
-### Control vs Data Planes
-
-| Plane | Handles |
-|---|---|
-| **Control** | CLI flags, TUI menus, workflow requests, action authorization |
-| **Data** | Go collectors, JSON evidence capture, Python rule evaluation, SQLite findings |
-| **Evidence** | Case-specific JSON snapshots, SHA-256 digests, chained audit hashes, Markdown reports |
-| **Security** | User ownership, umask 077, bounded reads, no network listener, explicit action approval |
+| **Control Plane** | CLI flags, TUI interactive menus, workflow transitions, analyst confirmation prompts | Operates strictly with the analyst's unprivileged terminal permissions |
+| **Data Plane** | 12 Go collectors, JSON evidence normalization, Python heuristic engine, SQLite findings | Bounded file sizes, execution timeouts, read-only syscalls |
+| **Evidence Store** | Host snapshots stored under `~/.aegisir/evidence/` with SHA-256 digests | File permissions `0600`, directory `0700`, digest cross-verification |
+| **Audit Plane** | Chained hash records of every scan, finding, note, and analyst decision in SQLite | Prevents retrospective modification of triage history |
 
 ---
 
 ## Incident Response Workflow
 
-AegisIR is structured around the **NIST SP 800-61 Rev. 3** six-phase incident response lifecycle.
+AegisIR aligns with the **NIST SP 800-61 Rev. 3** and **Cybersecurity Framework (CSF) 2.0** incident response operational phases.
 
-`
-┌──────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│ 1.PREPARATION│────▶│ 2. IDENTIFICATION │────▶│ 3. SCOPE & CONTAIN  │
-│              │     │                  │     │                     │
-│ -doctor      │     │ -demo            │     │ -all / -process     │
-│ -guide       │     │ -process         │     │ -findings           │
-│ -readiness   │     │ -network -user   │     │ -inspect            │
-└──────────────┘     └──────────────────┘     └──────────┬──────────┘
-        ▲                                                 │
-        │  new controls                                   ▼
-┌───────┴──────┐     ┌──────────────────┐     ┌─────────────────────┐
-│ 6. LESSONS   │◀────│  5. RECOVERY     │◀────│ 4. ERADICATION      │
-│    LEARNED   │     │                  │     │                     │
-│ -verify      │     │ -checklist       │     │ -decide             │
-│ -report      │     │ -note            │     │ -guide <topic>      │
-│ -timeline    │     │ -show            │     │ -plan               │
-└──────────────┘     └──────────────────┘     └─────────────────────┘
-`
+![AegisIR Incident Response Workflow](docs/diagrams/incident-workflow.png)
 
-### Finding Decision State Machine
+```mermaid
+flowchart LR
+  P["1. Preparation"] --> I["2. Identification"]
+  I --> S["3. Scope & Contain"]
+  S --> E["4. Eradication"]
+  E --> R["5. Recovery"]
+  R --> L["6. Lessons Learned"]
+  L -. "Hardened Controls & Baselines" .-> P
+  S -. "New IOCs Discovered" .-> I
+  R -. "Recurrence / Gap Detected" .-> S
+```
 
-Each suspicious finding goes through a documented decision lifecycle:
+### 1. Preparation
+Audit analyst environment, verify NTP synchronization, logging facilities, and collector health.
+```bash
+aegisir -doctor       # Verify system, collector permissions, and dependencies
+aegisir -guide readiness # Built-in IR readiness checklist and runbook
+```
 
-`
+### 2. Identification
+Triage host indicators and answer the **Three Critical IR Questions**:
+1. **Is malware active?** — Inspect live processes, anomalous parent-child chains, deleted-binary executions.
+2. **Is there suspicious communication?** — Identify unmapped listening sockets, foreign endpoints, non-standard port bindings.
+3. **Is there persistence?** — Scan scheduled tasks (cron), systemd services/timers, SSH authorized keys, and shell init scripts.
+
+### 3. Scope & Containment
+Run forensic scans across all 12 modules or isolate investigation to specific attack vectors:
+```bash
+aegisir -all -o scope-report.json      # Comprehensive forensic capture
+aegisir -network -process -file        # Targeted triage for suspicious activity
+```
+
+### 4. Eradication
+Review detected findings, examine raw forensic evidence, and record explicit analyst decisions:
+```bash
+aegisir -cases                         # Review all active incidents
+aegisir -show                          # Inspect findings for the current case
+```
+
+#### Finding Decision State Machine
+
+```text
             ┌─────────┐
-            │ PENDING │  ◀── finding created after scan
+            │ PENDING │  ◄── Finding created upon rule match
             └────┬────┘
          ┌───────┼───────┐
          ▼       ▼       ▼
-     ┌──────┐ ┌──────┐ ┌───────┐
-     │ SKIP │ │DEFER │ │APPROVE│
-     └──┬───┘ └──┬───┘ └───┬───┘
-        │        │          │
-        │        └──────────┤
-        │                   ▼
-        │          ┌─────────────────┐
-        │          │ ACTION ELIGIBLE │  (lab only, analyst must confirm)
-        │          └────────┬────────┘
-        │                   ▼
-        │          ┌─────────────────┐
-        └─────────▶│    RECORDED     │  ◀── re-scan & verify independently
-                   └─────────────────┘
-`
+     ┌──────┐ ┌──────┐ ┌─────────┐
+     │ SKIP │ │DEFER │ │ APPROVE │
+     └──┬───┘ └──┬───┘ └───┬─────┘
+        │        │         │
+        │        └─────────┤
+        │                  ▼
+        │         ┌─────────────────┐
+        │         │ ACTION ELIGIBLE │  (Lab/test environments only)
+        │         └────────┬────────┘
+        │                  ▼
+        └────────►┌─────────────────┐
+                  │ RECORDED DECISION│ ◄── Mandatory reason logged to audit chain
+                  └─────────────────┘
+```
 
-> Every decision requires a written analyst reason. No automatic execution ever occurs.
+### 5. Recovery & Verification
+Verify that remediated artifacts are resolved and cryptographic integrity holds:
+```bash
+aegisir -verify                        # Cryptographically verify case evidence hashes
+aegisir -checklist                     # Complete 6-phase NIST operational checklist
+```
+
+### 6. Lessons Learned & Export
+Generate comprehensive post-incident documentation for technical and executive stakeholders:
+```bash
+aegisir -report -o final-report.html   # Executive summary with integrity proof
+aegisir -timeline                      # Chronological event log
+```
+
+---
+
+## Technical Documentation
+
+Detailed engineering and architecture specifications are available in the [`docs/`](docs/) directory:
+
+- 📋 **[Product Requirements Document (PRD)](docs/01-PRD.md)** — Core problem thesis, user personas (SOC L1–L3, DFIR), functional requirements, and design scope.
+- 🏛️ **[System Architecture Specification](docs/02-SYSTEM-ARCHITECTURE.md)** — In-depth architectural decomposition, trust boundary definitions, process isolation, and component specifications.
+- 🔄 **[Complete Incident Response Workflow](docs/03-WORKFLOW.md)** — Complete mapping to NIST SP 800-61 Rev. 3 / CSF 2.0, state machines, and module observation matrices.
+- ⚙️ **[Technical Requirements & Standards](docs/06-TECHNICAL-REQUIREMENTS.md)** — Nonfunctional requirements, POSIX compliance, platform compatibility, and security boundaries.
 
 ---
 
 ## Collection Modules
 
-All 12 modules are **read-only**. No system state is modified during collection.
+All 12 modules are non-destructive and operate in **read-only mode**.
 
-| Flag | Module | What Is Collected | ATT&CK Relevance |
+| Flag | Module | Forensic Evidence Collected | MITRE ATT&CK Relevance |
 |---|---|---|---|
-| -p / -process | Processes | PIDs, PPIDs, UIDs, executables, command lines, parent chains | T1059, T1543, T1055 |
-| -f / -file | Files | Executables/scripts in /tmp, /var/tmp, /dev/shm; metadata & hashes | T1105, T1036 |
-| -m / -mount | Mounts | Mount points, NFS/CIFS shares, filesystem types | T1039, T1083 |
-| -n / -network | Network | Listening ports, active connections, socket states, owning PIDs | T1049, T1071 |
-| -u / -user | Users | Accounts, UID 0 accounts, sudo/wheel members, service accounts | T1078, T1136 |
-| -s / -service | Services | Systemd units, timers, ExecStart paths, enabled state | T1543.002 |
-| -c / -cron | Cron | Scheduled tasks, cron.d entries, user crontabs | T1053.003 |
-| -k / -ssh | SSH | Authorized key SHA-256 fingerprints, root keys, sshd config | T1098.004 |
-| -b / -bash | Profiles | Shell init persistence: .bashrc, .profile, .bash_profile | T1546.004 |
-| -l / -log | Logs | Auth logs, journal entries, failed logins, sudo events | T1070.002 |
-| -fw / -firewall | Firewall | iptables/nftables policy rules, chain defaults | T1562.004 |
-| -r / -readiness | Readiness | NTP sync, logging health, permissions, collector availability | — |
+| `-p` / `-process` | Processes | PIDs, PPIDs, UIDs, command lines, binaries in `/proc`, parent-child hierarchy | T1059, T1055, T1543 |
+| `-f` / `-file` | Files | Executables and scripts in `/tmp`, `/var/tmp`, `/dev/shm`; file permissions & hashes | T1105, T1036 |
+| `-m` / `-mount` | Mounts | Mount points, remote NFS/CIFS shares, flags (`noexec`, `nosuid`, `ro`) | T1039, T1083 |
+| `-n` / `-network` | Network | Active TCP/UDP listening ports, established sockets, socket inodes, owning PIDs | T1049, T1071 |
+| `-u` / `-user` | Users | Local `/etc/passwd` users, non-root UID 0 accounts, sudo/wheel memberships | T1078, T1136 |
+| `-s` / `-service` | Services | Systemd unit files, timers, active state, unit `ExecStart` binaries | T1543.002 |
+| `-c` / `-cron` | Cron | System crontabs, `/etc/cron.*` directories, spool user crontabs | T1053.003 |
+| `-k` / `-ssh` | SSH | Public key SHA-256 fingerprints in `authorized_keys`, root keys, sshd security config | T1098.004 |
+| `-b` / `-bash` | Shell Profiles | User profile scripts: `.bashrc`, `.profile`, `.bash_profile`, `.bash_logout` | T1546.004 |
+| `-l` / `-log` | Logs | Auth logs, journald entries, failed authentication attempts, sudo invocations | T1070.002 |
+| `-fw` / `-firewall` | Firewall | iptables and nftables chains, policies, and active filtering rules | T1562.004 |
+| `-r` / `-readiness` | Readiness | Host identity, NTP time synchronization, log visibility, tool permissions | Readiness Audit |
 
 ---
 
@@ -211,385 +255,311 @@ All 12 modules are **read-only**. No system state is modified during collection.
 
 ### Prerequisites
 
-`ash
-# Required on the target Linux host
-python3 --version   # Python 3.9+
-# No other dependencies needed
-`
+- **Operating System:** Linux (x86_64 or aarch64) or Windows Subsystem for Linux (WSL2)
+- **Runtime:** Python 3.9+ (pre-installed on almost all modern Linux distributions)
+- **Privileges:** Standard user access (no `root` or `sudo` required for baseline triage)
 
 ### Installation
 
-`ash
-# Option 1 — Download pre-built binary (recommended)
-wget https://github.com/shii9/AegisIR/releases/latest/download/aegisir-linux-amd64.tar.gz
-tar -xzf aegisir-linux-amd64.tar.gz
-chmod +x aegisir
+```bash
+# Clone the repository
+git clone https://github.com/shii9/AegisIR.git
+cd AegisIR
 
-# Option 2 — Per-user install via script
+# Build binary locally (requires Go 1.22+)
+make build
+
+# Or install for current user (~/.local/bin)
 bash scripts/install.sh
+```
 
-# Option 3 — Build from source (see Building from Source)
-`
+### First Run & Verification
 
-### First Run
+```bash
+# 1. Run environment and collector diagnostics
+./dist/aegisir -doctor
 
-`ash
-aegisir -doctor                         # Verify system & collector readiness
-aegisir -demo                           # Safe synthetic demo (no real data)
-aegisir -process                        # Scan running processes
-aegisir -all -o incident-report.html    # Full scan → HTML report
-aegisir -ui                             # Interactive terminal menu
-`
+# 2. Run a safe synthetic demonstration (uses simulated data, zero host risk)
+./dist/aegisir -demo
+
+# 3. Launch the interactive ANSI terminal interface
+./dist/aegisir -ui
+```
 
 ---
 
 ## Command Reference
 
-### General
+### General & Utility Commands
 
-`
-aegisir -h / -help        Show this help message
-aegisir -v / -version     Show version information
-aegisir -ui               Interactive terminal menu
-aegisir -doctor           Check system & collector readiness
-aegisir -demo             Run a safe synthetic incident demo
-aegisir -modules          List all 12 collection modules
-`
+```bash
+aegisir -h / -help        # Display full command help and options
+aegisir -v / -version     # Display version and build information
+aegisir -ui               # Open interactive numbered ANSI terminal menu
+aegisir -doctor           # Check host environment and collector readiness
+aegisir -demo             # Run an end-to-end simulated incident exercise
+aegisir -modules          # Display status of all 12 collection modules
+```
 
-### Scan Modules
+### Forensic Scanning
 
-`
-aegisir -p  / -process    Scan processes — PIDs, executables, command lines
-aegisir -f  / -file       Scan files    — executables in temp/writable paths
-aegisir -m  / -mount      Scan mounts   — filesystem mount points & shares
-aegisir -n  / -network    Scan network  — ports, connections, socket owners
-aegisir -u  / -user       Scan users    — accounts, UID 0, sudo membership
-aegisir -s  / -service    Scan services — systemd units, timers, ExecStart
-aegisir -c  / -cron       Scan cron     — scheduled tasks & crontabs
-aegisir -k  / -ssh        Scan SSH      — authorized keys & sshd config
-aegisir -b  / -bash       Scan profiles — shell init persistence
-aegisir -l  / -log        Scan logs     — auth logs & failed logins
-aegisir -fw / -firewall   Scan firewall — iptables/nftables policy
-aegisir -r  / -readiness  Check readiness — NTP, logging, permissions
-`
+```bash
+# Individual module scans
+aegisir -process          # Inspect live processes and anomalous parentage
+aegisir -file             # Inspect executables in writable directories
+aegisir -network          # Inspect active sockets and listening ports
+aegisir -user             # Audit user accounts and privileged groups
+aegisir -service          # Inspect systemd units and timers
+aegisir -cron             # Audit crontabs and scheduled jobs
+aegisir -ssh              # Fingerprint authorized SSH keys
+aegisir -bash             # Inspect shell startup scripts
+aegisir -log              # Review recent authentication events and failures
+aegisir -firewall         # Inspect active firewall rules
+aegisir -mount            # Inspect mount flags and shared filesystems
+aegisir -readiness        # Check system time and audit health
 
-### Combined Scan & Output
+# Multi-module scans
+aegisir -process -network -file -o triage.md
 
-`
-aegisir -all                      Scan all 12 modules at once
-aegisir -all -o report.html       Scan all → save HTML report
-aegisir -all -o report.json       Scan all → export SIEM-ready JSON
-aegisir -all -o report.md         Scan all → save Markdown report
-aegisir -fmt md / -format json    Explicitly set output format
-`
+# Comprehensive 12-module scan
+aegisir -all -o incident-report.html
+```
 
-**Supported formats:** .md (Markdown), .json (SIEM JSON), .html (Executive HTML), .txt (Plain text)
+### Output Formats
 
-### Multi-Module Scan Examples
-
-`ash
-# Scan specific modules and save report
-aegisir -file -mount -process -o new.md
-
-# Scan network and users, export JSON for SIEM ingestion
-aegisir -network -user -o siem-export.json
-`
-
----
-
-## Output & Reports
-
-AegisIR generates structured forensic reports with SHA-256 evidence digests. Each report includes:
-
-- **Executive Summary** — severity, asset, analyst, timestamps
-- **Module Results** — per-module findings with raw evidence
-- **Suspicious Findings** — scored, ATT&CK-mapped indicators
-- **Recommendations** — actionable mitigation steps with cross-verification commands
-- **Evidence Integrity** — SHA-256 digest for every collected artifact
-- **Audit Trail** — chained log of all analyst decisions
-
-### Report Format Examples
-
-`ash
-aegisir -all -o report.html          # Rich HTML for executives/presentations
-aegisir -all -o report.md            # Markdown for wiki/ticketing systems
+```bash
+aegisir -all -o report.html          # Executive HTML report with styled metrics
+aegisir -all -o report.md            # Markdown report for incident tickets and wikis
 aegisir -all -o report.json          # Structured JSON for SIEM/SOAR ingestion
-aegisir -all -o report.txt           # Plain text for terminal/email
-aegisir -report -o incident.html     # Export existing case as HTML
-`
+aegisir -all -o report.txt           # Clean plain text for email or console
+aegisir -all -fmt json               # Explicitly set output serialization
+```
+
+### Case & Incident Management
+
+```bash
+aegisir -cases                       # List all incident cases in local database
+aegisir -show                        # Display 3 Critical IR Questions for latest case
+aegisir -show CASE-ID                # Display details for a specific case
+aegisir -timeline                    # Display chronological event timeline
+aegisir -checklist                   # Display 6-phase NIST operational checklist
+aegisir -verify                      # Cryptographically verify evidence SHA-256 digests
+aegisir -report -o final.html        # Export forensic report for latest case
+aegisir -note "Investigated PID 404" # Attach timestamped analyst note to active case
+```
 
 ---
 
-## Past Case & Incident Management
+## Investigation Playbooks
 
-AegisIR maintains a full SQLite-backed case lifecycle with cryptographic evidence integrity.
+AegisIR contains 13 built-in offline investigation playbooks accessible directly from the terminal without internet access:
 
-### Case Commands
+```bash
+aegisir -guide process      # Process triage & memory execution playbook
+aegisir -guide file         # Temp file and unauthorized executable investigation
+aegisir -guide network      # Socket, port, and connection analysis
+aegisir -guide user         # Privilege escalation and rogue account triage
+aegisir -guide service      # Systemd service and timer persistence investigation
+aegisir -guide cron         # Scheduled job persistence investigation
+aegisir -guide ssh          # SSH authorized key forensics and backdoor analysis
+aegisir -guide firewall     # Firewall rule tampering and evasion analysis
+aegisir -guide logs         # Log review and anti-forensic tampering detection
+aegisir -guide readiness    # Incident response readiness and preflight checklist
+aegisir -guide workflow     # End-to-end NIST incident handling methodology
+```
 
-`ash
-aegisir -cases                           # List all incident cases
-aegisir -show                            # Show 3 IR questions for latest case
-aegisir -show CASE-2024-001              # Dashboard for a specific case
-aegisir -timeline                        # Chronological activity for latest case
-aegisir -timeline CASE-2024-001          # Timeline for a specific case
-aegisir -verify                          # Verify SHA-256 evidence integrity
-aegisir -verify CASE-2024-001            # Verify a specific case
-aegisir -checklist                       # 6-phase NIST IR checklist
-aegisir -checklist CASE-2024-001         # Checklist for a specific case
-aegisir -report -o incident.html         # Export latest case report
-aegisir -report CASE-2024-001 -o out.md  # Export specific case
-aegisir -note Analyst note text        # Add timestamped note to latest case
-`
-
-### The 3 Core IR Questions
-
-Every case dashboard (-show) answers:
-
-1. **Is malware active?** — Live process analysis, executable provenance, memory indicators
-2. **Is there suspicious communication?** — Socket analysis, network connections, service owners
-3. **Is there persistence?** — Cron, services, authorized keys, shell profiles, scheduled tasks
-
----
-
-## Investigation Guides
-
-Built-in offline playbooks with step-by-step procedures, ATT&CK context, and cross-verification commands.
-
-`ash
-aegisir -guide process      # Process investigation playbook
-aegisir -guide file         # File system forensics guide
-aegisir -guide network      # Network analysis guide
-aegisir -guide user         # User & privilege escalation guide
-aegisir -guide service      # Service persistence investigation
-aegisir -guide cron         # Scheduled task analysis
-aegisir -guide ssh          # SSH key & config forensics
-aegisir -guide firewall     # Firewall rule analysis
-aegisir -guide logs         # Log analysis & tampering detection
-aegisir -guide readiness    # IR readiness checklist
-aegisir -guide workflow     # Full IR workflow overview
-`
-
-Each guide contains:
-
-| Section | Content |
-|---|---|
-| **Purpose** | What to investigate and why |
-| **Evidence Collected** | Exact data sources queried |
-| **Suspicious Indicators** | What warrants escalation |
-| **Cross-Verification Commands** | Shell commands to confirm findings (grep, ss, lsof, stat, systemctl) |
-| **Containment Runbook** | Step-by-step response procedures |
-| **MITRE ATT&CK Mapping** | Relevant technique IDs |
+Each guide provides:
+- **Core Investigation Objectives:** What to look for and attack hypotheses.
+- **Evidence Collected:** Exactly which files and kernel structures are evaluated.
+- **High-Risk Indicators:** Concrete warning signals that warrant immediate escalation.
+- **Cross-Verification Shell Commands:** Exact Linux CLI commands (`stat`, `ss -tulpn`, `lsof -p`, `systemctl cat`) to independently confirm findings before taking action.
+- **Containment & Remediation Checklist:** Step-by-step guidance for safe isolation.
 
 ---
 
 ## Security Model
 
-### Trust Boundaries
+### Trust Boundary Architecture
 
-`
-┌─────────────────────────────────────────────────────┐
-│  TRUSTED: Authorized IR Analyst + Local Terminal     │
-│                                                     │
-│  ┌─────────────────────────────────────────────┐   │
-│  │  AegisIR Process (same OS identity)          │   │
-│  │  • Go CLI  •  Python Engine  •  Collectors   │   │
-│  └─────────────────────────────────────────────┘   │
-│                                                     │
-│  UNTRUSTED: All data from the compromised host      │
-│  • /proc entries   • Log files   • User input       │
-└─────────────────────────────────────────────────────┘
-`
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│  TRUSTED BOUNDARY: Authorized Security Analyst + Terminal        │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  AegisIR Process (Standard Analyst Permissions)             │  │
+│  │  • Go CLI Control Plane   • Python Heuristic Engine        │  │
+│  │  • 12 Forensic Collectors • Local SQLite Storage           │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│                                                                  │
+│  UNTRUSTED BOUNDARY: Target Host Forensic Artifacts              │
+│  • /proc entries   • Writable directories (/tmp)  • Log entries  │
+│  • Public SSH keys • Shell scripts                • Network info │
+└──────────────────────────────────────────────────────────────────┘
+```
 
-### Security Properties
+### Safety & Integrity Controls
 
-| Property | Implementation |
+| Security Control | Implementation Detail |
 |---|---|
-| **Read-only collection** | Collectors use only read syscalls; no writes to /proc, /sys, or system paths |
-| **No root requirement** | Runs at analyst privilege level; refuses root live actions |
-| **No network listener** | Zero open ports; Python is a child process via stdin/stdout |
-| **Tamper-evident evidence** | SHA-256 digest per evidence file; chained audit log in SQLite |
-| **Bounded resource use** | File count caps, depth limits, byte limits, subprocess timeouts |
-| **Explicit action approval** | Live actions require: analyst approval + lab flag + TTY confirmation + preflight |
-| **No credential collection** | Does not collect /etc/shadow, SSH private keys, or raw environment variables |
-
-### Threat Model
-
-| Threat | Control | Residual Risk |
-|---|---|---|
-| Unintended destructive action | Read-only scan; live actions require lab flag + typed confirmation | Operator error and race conditions |
-| Unauthorized root execution | Explicit refusal of root live-action execution | Inadequate for enterprise remote response |
-| Evidence tampering | SHA-256 digests + audit chain | Local root can modify both file and DB |
-| Credential exposure | No shadow/private keys collected | Sensitive data may appear in cmdlines/logs |
-| False positive → overblocking | Confidence shown; decision reason mandatory | Rules need production baseline evaluation |
-
-> ⚠️ **AegisIR v0.2 is a triage and case-management tool. It is not a replacement for full forensic acquisition, enterprise SOAR platforms, or legal chain-of-custody evidence handling.**
+| **Non-Destructive Scanning** | Collectors invoke read-only system calls; no writes to `/proc`, `/sys`, or root directories. |
+| **No Root Requirement** | Runs entirely under standard user credentials. Refuses root execution for live containment actions. |
+| **Zero Network Attack Surface** | No listening ports, no HTTP services, and no RPC endpoints. Python is an isolated subprocess over stdin/stdout. |
+| **Evidence Immutability** | Every raw collection file is hashed with SHA-256 upon capture. Evidence directory permissions are enforced as `0700`. |
+| **Audit Log Chaining** | Analyst decisions, scan executions, and notes are appended to an internal SQLite hash chain to detect tampering. |
+| **No Credential Harvesting** | By design, AegisIR never collects `/etc/shadow`, private SSH keys, or raw process environment variables. |
+| **Fail-Safe Containment** | Containment actions are restricted to lab environments and require interactive typed confirmation. |
 
 ---
 
 ## Project Structure
 
-`
+```text
 AegisIR/
+├── .github/
+│   └── workflows/
+│       └── test.yml                 # CI test & lint pipeline
 ├── cmd/
 │   └── aegisir/
-│       ├── main.go              # CLI entrypoint, all commands & flags
-│       ├── tui.go               # Terminal UI — cases, findings, dashboards
-│       └── guide.go             # 13 offline IR investigation playbooks
-│
-├── internal/
-│   ├── collector/
-│   │   ├── collector.go         # 12 read-only Linux forensic collectors
-│   │   └── collector_test.go
-│   ├── actions/
-│   │   ├── actions.go           # Restricted lab-only action executor
-│   │   └── actions_test.go
-│   └── bridge/
-│       └── bridge.go            # Bounded JSON stdin/stdout subprocess IPC
-│
-├── python/
-│   ├── engine.py                # Case DB, detection rules, report export
-│   └── test_engine.py           # 9 unit tests (all passing)
-│
+│       ├── guide.go                 # 13 offline investigation playbooks
+│       ├── main.go                  # CLI entrypoint, commands, and routing
+│       └── tui.go                   # ANSI interactive terminal menu & dashboard
 ├── docs/
-│   └── diagrams/                # Rendered architecture & workflow diagrams (PNG/SVG/DOT)
-│
-├── scripts/
-│   ├── install.sh               # Per-user installation
-│   ├── smoke.sh                 # CLI integration tests
-│   └── package.sh               # Build Linux amd64/arm64 tarballs
-│
+│   ├── 01-PRD.md                    # Product requirements & problem thesis
+│   ├── 02-SYSTEM-ARCHITECTURE.md   # Architectural decomposition & security boundaries
+│   ├── 03-WORKFLOW.md               # NIST incident handling lifecycle & module mapping
+│   ├── 06-TECHNICAL-REQUIREMENTS.md # Technical standards & performance constraints
+│   └── diagrams/                    # Architecture & workflow visual assets
+│       ├── incident-workflow.dot    # Graphviz workflow source
+│       ├── incident-workflow.png    # Rendered workflow diagram
+│       ├── incident-workflow.svg    # Vector workflow diagram
+│       ├── system-architecture.dot  # Graphviz architecture source
+│       ├── system-architecture.png  # Rendered architecture diagram
+│       └── system-architecture.svg  # Vector architecture diagram
 ├── examples/
-│   └── demo-workflow.md         # Operator exercise & synthetic attack story
-│
-├── dist/
-│   └── aegisir                  # Pre-built Linux amd64 binary
-│
-├── Makefile                     # Build, test, and package targets
-├── go.mod
-├── LICENSE
-└── README.md
-`
+│   ├── demo-incident-report.md      # Sample incident report output
+│   └── demo-workflow.md             # Training scenario & synthetic walk-through
+├── internal/
+│   ├── actions/
+│   │   ├── actions.go               # Remediation safety engine (lab-only)
+│   │   └── actions_test.go          # Safety engine unit tests
+│   ├── bridge/
+│   │   └── bridge.go                # Bounded JSON stdin/stdout subprocess IPC
+│   └── collector/
+│       ├── collector.go             # 12 read-only Linux forensic collectors
+│       └── collector_test.go        # Collector unit tests
+├── python/
+│   ├── engine.py                    # Analytics, ATT&CK correlation, SQLite case store
+│   └── test_engine.py               # Unit & detection rule tests
+├── scripts/
+│   ├── install.sh                   # Local per-user installation script
+│   ├── package.sh                   # Multi-architecture packager with SHA-256 checksums
+│   └── smoke.sh                     # End-to-end CLI integration test suite
+├── .gitignore                       # Clean production ignore rules
+├── CHANGELOG.md                     # Semantic version release notes
+├── CONTRIBUTING.md                  # Development guidelines
+├── go.mod                           # Go module definition
+├── LICENSE                          # MIT License
+├── Makefile                         # Unified development & build automation
+├── README.md                        # Master project documentation
+└── SECURITY.md                      # Security & vulnerability reporting policy
+```
 
 ---
 
 ## Building from Source
 
 ### Requirements
+- **Go:** 1.22+
+- **Python:** 3.9+
+- **Make** (optional, for automation)
 
-- Go 1.22+ (Windows or Linux)
-- Python 3.9+ (on target Linux host)
-- Linux host for execution
+### Compilation Commands
 
-### Build
-
-`ash
+```bash
 # Clone the repository
 git clone https://github.com/shii9/AegisIR.git
 cd AegisIR
 
-# Build Linux amd64 binary
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o dist/aegisir ./cmd/aegisir
+# Build Linux amd64 binary (standard servers and workstations)
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/aegisir ./cmd/aegisir
+cp python/engine.py dist/python/engine.py
 
-# Build for arm64 (Raspberry Pi, AWS Graviton)
-GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o dist/aegisir-arm64 ./cmd/aegisir
+# Build Linux arm64 binary (Raspberry Pi, AWS Graviton)
+GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/aegisir-arm64 ./cmd/aegisir
 
-# Or use make
-make build
-`
-
-### Makefile Targets
-
-`ash
-make build      # Build Linux amd64 binary → dist/aegisir
-make test       # Run Go + Python unit tests
-make lint       # Run go vet and staticcheck
-make package    # Build amd64 + arm64 distribution tarballs
-make clean      # Remove build artifacts
-`
+# Or use the Makefile targets
+make build       # Compile Linux amd64 binary
+make lint        # Run go vet static analysis
+make test        # Run all Go and Python test suites
+make package     # Build tarballs for amd64 and arm64 with SHA-256 checksums
+make clean       # Remove build artifacts
+```
 
 ---
 
 ## Testing
 
-`ash
-# Run all Python unit tests
-python3 -m unittest python/test_engine.py -v
+AegisIR includes automated testing across Go static analysis, collector unit tests, and Python detection rule engines.
+
+```bash
+# Run Python engine tests
+python3 python/test_engine.py
+
+# Run Go static analysis
+go vet ./...
 
 # Run Go unit tests
-go test ./...
+go test -v ./...
 
-# Smoke test against the compiled binary
+# Run the end-to-end integration smoke test
 bash scripts/smoke.sh
+```
 
-# Safe synthetic demo (no real data collected)
-aegisir -demo
-`
+### Verified Test Matrix
 
-### Test Coverage
-
-| Suite | Tests | Status |
+| Test Suite | Scope | Status |
 |---|---|---|
-| Python engine unit tests | 9 tests | ✅ All passing |
-| Tamper detection | Audit chain integrity | ✅ Passing |
-| Workflow enforcement | Case lifecycle state machine | ✅ Passing |
-| Detection rules | ATT&CK rule evaluation | ✅ Passing |
-| Path validation | Input sanitization | ✅ Passing |
-| Report integrity | Overwrite protection + hash | ✅ Passing |
+| **Python Detection Rules** | MITRE ATT&CK heuristic rule evaluation | ✅ 9/9 Passed |
+| **Audit Chain Verification** | SQLite hash-chained event tamper detection | ✅ Passed |
+| **Case State Transitions** | Finding approval, skipping, and deferral lifecycle | ✅ Passed |
+| **Collector Isolation** | Read-only bound enforcement and permission handling | ✅ Passed |
+| **Report Generation** | Markdown, HTML, JSON, and Text export fidelity | ✅ Passed |
+| **Cross-Platform Compilation** | Statically linked Linux `amd64` and `arm64` | ✅ Passed |
 
 ---
 
-## Limitations & Roadmap
+## Roadmap
 
-### Current Limitations (v0.2)
-
-- No real-time notifications or WebSocket live updates
-- No multi-analyst RBAC or two-person approval workflow
-- No GPS/map integration for network geolocation
-- No SMS/email notification system
-- No multi-factor authentication
-- No memory capture or full disk imaging
-- No enterprise multi-host orchestration
-- Local SHA-256 chain is not admissible legal chain of custody
-
-### Planned Features
-
-| Feature | Description |
-|---|---|
-| 🌐 Cloud deployment | Multi-tenant SaaS with encrypted evidence object store |
-| 📡 WebSocket updates | Real-time finding notifications during scan |
-| 🗺️ Map integration | IP geolocation and network topology visualization |
-| 📱 Mobile companion | Android/iOS app for on-call analysts |
-| 🔑 MFA support | TOTP/hardware key authentication |
-| 🧠 AI advisory | Optional isolated LLM advisory (citation-only, non-executive) |
-| 🏢 Enterprise RBAC | Role-based access, two-person approval, WORM audit export |
-| 📧 Notifications | Email/SMS alerts for critical findings |
-| 📍 Asset inventory | Integrated CMDB for baseline comparison across hosts |
+- [ ] **Cloud & Object Storage Connector:** Optional encrypted S3/GCS sync for remote incident archives.
+- [ ] **Live WebSocket Feeds:** Streaming collector events for multi-monitor SOC displays.
+- [ ] **Host Baseline Engine:** Deterministic delta comparison against known-good golden image snapshots.
+- [ ] **IP Geolocation Visualization:** Offline MaxMind GeoIP integration for foreign socket endpoints.
+- [ ] **YARA Scanning Integration:** Memory and file signature scanning for detected suspicious binaries.
+- [ ] **SIEM Streaming Adapters:** Native syslog and Webhook dispatchers for Splunk, Wazuh, and Elastic.
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines, branch conventions, and the pull request process.
+Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for pull request guidelines, coding conventions, and testing requirements.
 
-## Security Disclosure
+---
 
-See [SECURITY.md](SECURITY.md) for responsible disclosure instructions. Please report security issues privately before publishing an exploit.
+## Security Policy
 
-> **Test only on disposable VMs, non-sensitive lab accounts, or synthetic incidents.**  
-> Never run live actions in CI or on production hosts without authorized change management approval.
+Please review [SECURITY.md](SECURITY.md) for details on responsible vulnerability disclosure. Always conduct tests on disposable virtual machines or dedicated lab environments.
 
 ---
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for full text.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for full details.
 
 ---
 
-<div align=center>
+<div align="center">
 
-**AegisIR** — Built for authorized incident responders. Read-only. Evidence-first. Analyst-controlled.
-
-*Collect → Detect → Decide → Report → Verify*
+**AegisIR** — Precision Linux Incident Response & Forensic Workbench  
+*Read-only · Evidence-first · Tamper-evident · Analyst-controlled*
 
 </div>
